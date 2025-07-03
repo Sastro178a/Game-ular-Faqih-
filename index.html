@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Game Ular Level</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: radial-gradient(#111, #000);
+      font-family: sans-serif;
+      color: white;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      height: 100vh;
+    }
+    canvas {
+      background: #1e1e1e;
+      border: 5px solid #2ecc71;
+      box-shadow: 0 0 15px #2ecc71;
+      margin-top: 10px;
+    }
+    #score, #level {
+      font-size: 18px;
+      margin: 5px;
+    }
+    #game-over {
+      display: none;
+      background: rgba(0,0,0,0.7);
+      color: red;
+      padding: 15px 30px;
+      border-radius: 10px;
+      margin: 10px;
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 15px;
+    }
+    .btn {
+      background: #2ecc71;
+      color: white;
+      border: none;
+      font-size: 20px;
+      padding: 15px;
+      border-radius: 10px;
+      width: 60px;
+      height: 60px;
+      box-shadow: 0 0 5px #2ecc71;
+    }
+    .btn:active {
+      background: #27ae60;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>Game Ular Level</h2>
+  <div id="score">Skor: 0</div>
+  <div id="level">Level: 1</div>
+  <canvas id="game" width="300" height="300"></canvas>
+  <div id="game-over">Game Over! Muat ulang untuk bermain lagi.</div>
+
+  <div class="controls">
+    <button class="btn" onclick="setDirection('up')">⬆️</button>
+    <div style="display: flex; gap: 10px;">
+      <button class="btn" onclick="setDirection('left')">⬅️</button>
+      <button class="btn" onclick="setDirection('down')">⬇️</button>
+      <button class="btn" onclick="setDirection('right')">➡️</button>
+    </div>
+  </div>
+
+  <!-- Audio -->
+  <audio id="eat-sound" src="https://www.fesliyanstudios.com/play-mp3/387" preload="auto"></audio>
+  <audio id="dead-sound" src="https://www.fesliyanstudios.com/play-mp3/6678" preload="auto"></audio>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+    const gridSize = 15;
+    const tileCount = canvas.width / gridSize;
+
+    let snake = [{ x: 10, y: 10 }];
+    let direction = { x: 0, y: 0 };
+    let food = { x: 5, y: 5 };
+    let score = 0;
+    let level = 1;
+    let gameOver = false;
+    let started = false;
+    let speed = 200;
+    let colorShift = 0;
+
+    const scoreDisplay = document.getElementById("score");
+    const levelDisplay = document.getElementById("level");
+    const gameOverDisplay = document.getElementById("game-over");
+    const eatSound = document.getElementById("eat-sound");
+    const deadSound = document.getElementById("dead-sound");
+
+    // Gambar emoji apel
+    function drawApple(x, y) {
+      ctx.font = `${gridSize}px serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("🍎", x * gridSize + gridSize / 2, y * gridSize + gridSize / 2);
+    }
+
+    function drawSnakePart(x, y, color) {
+      ctx.beginPath();
+      ctx.arc(
+        x * gridSize + gridSize / 2,
+        y * gridSize + gridSize / 2,
+        gridSize / 2.5,
+        0, Math.PI * 2
+      );
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.closePath();
+    }
+
+    function draw() {
+      if (gameOver) return;
+
+      ctx.fillStyle = "#1e1e1e";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      drawApple(food.x, food.y);
+
+      // Animasi warna tubuh ular (berubah hue)
+      colorShift = (colorShift + 3) % 360;
+
+      for (let i = 0; i < snake.length; i++) {
+        let hue = (colorShift + i * 10) % 360;
+        let color = `hsl(${hue}, 80%, ${i === 0 ? '60%' : '40%'})`;
+        drawSnakePart(snake[i].x, snake[i].y, color);
+      }
+
+      if (!started) return;
+
+      const head = {
+        x: snake[0].x + direction.x,
+        y: snake[0].y + direction.y
+      };
+
+      if (
+        head.x < 0 || head.x >= tileCount ||
+        head.y < 0 || head.y >= tileCount ||
+        snake.some(seg => seg.x === head.x && seg.y === head.y)
+      ) {
+        gameOver = true;
+        gameOverDisplay.style.display = "block";
+        deadSound.play();
+        return;
+      }
+
+      snake.unshift(head);
+
+      if (head.x === food.x && head.y === food.y) {
+        score += 10;
+        scoreDisplay.textContent = "Skor: " + score;
+        eatSound.play();
+
+        // Tambah level setiap 50 poin
+        if (score % 50 === 0) {
+          level++;
+          levelDisplay.textContent = "Level: " + level;
+          speed = Math.max(60, speed - 20); // Semakin cepat, tapi dibatasi
+          clearInterval(gameLoop);
+          gameLoop = setInterval(draw, speed);
+        }
+
+        food = {
+          x: Math.floor(Math.random() * tileCount),
+          y: Math.floor(Math.random() * tileCount)
+        };
+      } else {
+        snake.pop();
+      }
+    }
+
+    function setDirection(dir) {
+      started = true;
+      if (dir === 'up' && direction.y === 0) direction = { x: 0, y: -1 };
+      else if (dir === 'down' && direction.y === 0) direction = { x: 0, y: 1 };
+      else if (dir === 'left' && direction.x === 0) direction = { x: -1, y: 0 };
+      else if (dir === 'right' && direction.x === 0) direction = { x: 1, y: 0 };
+    }
+
+    window.addEventListener("keydown", e => {
+      if (e.key === "ArrowUp") setDirection("up");
+      else if (e.key === "ArrowDown") setDirection("down");
+      else if (e.key === "ArrowLeft") setDirection("left");
+      else if (e.key === "ArrowRight") setDirection("right");
+    });
+
+    // Jalankan pertama kali
+    let gameLoop = setInterval(draw, speed);
+  </script>
+</body>
+</html>
